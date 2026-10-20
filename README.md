@@ -15,6 +15,10 @@
 | navidog.jpg | 导航犬 iPhone 版 V3.7.6 截图（2012） | https://36kr.com/p/1640683159553 |
 | goluk.jpg | 极路客 G1 行车记录仪 | https://detail.zol.com.cn/403/402592/pic.shtml |
 
+## 网站图标
+
+`favicon.svg`、`favicon.ico`、`apple-touch-icon.png` 是 CR 字母图标，字形取自 Barlow Condensed ExtraBold（SIL Open Font License），转成了路径，不依赖字体加载。
+
 ## 文案里用到的事实出处
 
 - 导航犬 2006 年上线、2013 年官方公布用户数破 7000 万：36氪 2012-08-01、2013-04-28（m.36kr.com/p/1640683159553、/p/1641724100609）

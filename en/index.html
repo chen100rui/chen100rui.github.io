@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Chen Rui (CR100), product manager and a co-founder of Hibot. He has worked on the iFLYTEK Smart Recorder, the iFLYTEK Huiyibao meeting transcriber, the 360 Dash Cam, Navidog, Goluk and more.">
+<meta property="og:title" content="Chen Rui · CR100">
+<meta property="og:description" content="Product manager and a co-founder of Hibot. From map data in 2008 to Hibot today.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0b1320">
+<link rel="alternate" hreflang="zh-CN" href="https://chen100rui.github.io/">
+<link rel="alternate" hreflang="en" href="https://chen100rui.github.io/en/">
+<link rel="alternate" hreflang="x-default" href="https://chen100rui.github.io/en/">
+<script>
+/* 语言：手动选过就按手动的；否则时区在中国大陆跳到中文版，其他地区留在英文版 */
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem('lang'); } catch (e) {}
+  if (saved === 'en') return;
+  if (saved === 'zh') { location.replace('../'); return; }
+  var tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+  var inChina = /^(Asia\/(Shanghai|Chongqing|Chungking|Harbin|Urumqi|Kashgar)|PRC)$/.test(tz);
+  if (inChina) location.replace('../');
+})();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1320'/%3E%3Cpath d='M32 10c-9 0-16 7-16 16 0 12 16 28 16 28s16-16 16-28c0-9-7-16-16-16z' fill='%23ffb547'/%3E%3Ccircle cx='32' cy='26' r='6' fill='%230b1320'/%3E%3C/svg%3E">
+<style>
+/* 基础样式：和预览环境保持一致 */
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<title>Chen Rui · CR100</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700;900&display=swap">
+<style>
+/* 路线 Route: a night navigation map. Hero = city grid with a route that draws itself to Hibot;
+   the journey timeline is the same route as a list of stations. One route colour (amber) on a navy map. */
+:root {
+  --bg: #0b1320;
+  --block: #0f1929;
+  --park: #0d1f24;
+  --water: #0f2440;
+  --shore: #1a3556;
+  --road: #172338;
+  --road-major: #1f3150;
+  --ring: #22344f;
+  --contour: #152235;
+  --station: #3b5277;
+  --lane: #3d5070;
+  --surface: #111c2e;
+  --surface-2: #16233a;
+  --line: #22324d;
+  --fg: #e8edf5;
+  --muted: #a3b0c6;
+  --label: #8ba5c9;
+  --route: #ffb547;
+  --route-hi: #ffe1a8;
+  --route-soft: rgba(255, 181, 71, .16);
+  --route-glow: rgba(255, 181, 71, .45);
+  --ink: #0b1320;
+  --plate: #f5f5f7;
+  --nav-bg: rgba(11, 19, 32, .82);
+  --btn-bg: rgba(17, 28, 46, .72);
+  --hud-hi: rgba(255, 255, 255, .05);
+  --shadow: rgba(2, 6, 12, .8);
+  --mask: #000;
+  --display: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --sign: "Barlow Condensed", "Noto Sans SC", "Arial Narrow", system-ui, sans-serif;
+  --body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; background: var(--bg); }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font-family: var(--body); font-size: 16px; line-height: 1.7;
+  overflow-x: hidden; -webkit-font-smoothing: antialiased;
+}
+::selection { background: var(--route); color: var(--ink); }
+
+/* 地图舞台：只铺在首屏后面，底部淡出 */
+.stage {
+  position: absolute; top: 0; left: 0; right: 0; height: 100vh; z-index: 0; pointer-events: none; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, var(--mask) calc(100% - 160px), transparent);
+          mask-image: linear-gradient(to bottom, var(--mask) calc(100% - 160px), transparent);
+}
+#map { display: block; width: 100%; height: 100%; }
+
+.wrap {
+  position: relative; z-index: 1; max-width: 1080px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+nav.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--nav-bg); -webkit-backdrop-filter: blur(12px) saturate(1.2); backdrop-filter: blur(12px) saturate(1.2);
+  border-bottom: 1px solid var(--line);
+}
+.nav-in { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-block: 14px; font-family: var(--mono); font-size: 13px; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.logo { font-family: var(--sign); font-weight: 700; font-size: 22px; letter-spacing: .06em; line-height: 1; display: inline-flex; align-items: center; gap: 10px; }
+.logo::before { content: ""; width: 11px; height: 11px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--route); box-shadow: 0 0 10px var(--route-glow); }
+nav ul { display: flex; gap: 22px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
+nav a { color: var(--muted); text-decoration: none; transition: color .2s; }
+nav a:hover, nav a:focus-visible { color: var(--fg); }
+nav .lang a { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; }
+nav .lang a:hover, nav .lang a:focus-visible { border-color: var(--route); color: var(--route); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--route); outline-offset: 3px; border-radius: 4px; }
+
+/* 首屏 */
+.hero {
+  position: relative; display: flex; flex-direction: column; justify-content: center;
+  min-height: min(calc(100vh - 64px), 860px); min-height: min(calc(100svh - 64px), 860px);
+  padding-block: 48px 80px;
+}
+.eyebrow { font-family: var(--mono); font-size: 12px; color: var(--label); letter-spacing: .16em; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+.hero-eyebrow { flex-wrap: wrap; gap: 6px 18px; }
+.coord { display: inline-flex; align-items: center; gap: 9px; color: var(--route); letter-spacing: .08em; }
+.coord::before {
+  content: ""; flex: none; width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--route);
+  background: radial-gradient(circle, var(--route) 0 2px, transparent 2.5px);
+}
+h1 {
+  font-family: var(--display); font-weight: 900; line-height: 1.08; margin: 22px 0 18px;
+  font-size: clamp(48px, 9vw, 104px); letter-spacing: .02em; text-wrap: balance;
+  text-shadow: 0 0 2px var(--bg), 0 0 26px var(--bg);
+}
+.grad { color: var(--fg); }
+h1 .char { display: inline-block; animation: drop .9s cubic-bezier(.2,.9,.2,1.2) both; }
+.role { font-size: clamp(18px, 2.6vw, 24px); color: var(--muted); min-height: 1.7em; }
+.role b { color: var(--fg); font-weight: 500; }
+.caret { display: inline-block; width: 2px; height: 1em; background: var(--route); vertical-align: -0.15em; margin-left: 4px; animation: blink 1s steps(1) infinite; }
+.tagline { color: var(--muted); max-width: 46ch; margin: 18px 0 0; font-size: clamp(16px, 2vw, 18px); text-shadow: 0 0 12px var(--bg); }
+a.inline {
+  color: var(--fg); text-decoration: none; padding-bottom: 1px;
+  background: linear-gradient(var(--route), var(--route)) no-repeat 0 100% / 100% 1.5px; transition: background-size .3s, color .3s;
+}
+a.inline:hover { background-size: 100% 100%; color: var(--ink); }
+.cta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 36px; }
+.btn {
+  font: 500 15px var(--body); padding: 12px 22px; border-radius: 12px; text-decoration: none; cursor: pointer;
+  border: 1px solid var(--line); color: var(--fg); background: var(--btn-bg); transition: transform .2s, border-color .2s, background .2s;
+}
+.btn.primary { background: var(--route); border-color: var(--route); color: var(--ink); box-shadow: 0 10px 28px -12px var(--route-glow); }
+.btn:hover { transform: translateY(-2px); border-color: var(--route); }
+
+section { padding-block: 72px; }
+section > .eyebrow::before {
+  content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid var(--route); background: var(--bg); box-shadow: 0 0 0 3px var(--route-soft);
+}
+.contact > .eyebrow::before {
+  width: 12px; height: 12px; border: 0; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); box-shadow: none;
+  background: radial-gradient(circle, var(--bg) 0 2px, var(--route) 2.5px);
+}
+h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.5vw, 44px); margin: 10px 0 28px; letter-spacing: .01em; line-height: 1.3; }
+
+/* 关于 + 仪表读数 */
+.about { display: grid; grid-template-columns: 1.4fr 1fr; gap: 48px; align-items: start; }
+.about p { margin: 0 0 14px; max-width: 62ch; color: var(--muted); }
+.about p strong { color: var(--fg); font-weight: 500; }
+.hud {
+  position: relative; border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px 20px;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: inset 0 1px 0 var(--hud-hi), 0 24px 48px -30px var(--shadow);
+}
+.hud-top {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-family: var(--mono); font-size: 12px; color: var(--label); letter-spacing: .08em;
+  padding-bottom: 12px; margin-bottom: 16px; border-bottom: 1px dashed var(--line);
+}
+.hud-top b { color: var(--route); font-weight: 500; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stat { padding: 0 12px; border-left: 1px solid var(--line); min-width: 0; }
+.stat:first-child { padding-left: 0; border-left: 0; }
+.stat .n { font-family: var(--sign); font-size: clamp(38px, 9vw, 56px); line-height: 1; font-weight: 700; color: var(--route); font-variant-numeric: tabular-nums; }
+.stat .n span { color: var(--fg); }
+.stat .l { margin-top: 8px; font-size: 13px; line-height: 1.45; color: var(--muted); text-wrap: balance; }
+.hud-bar { position: relative; margin-top: 20px; height: 6px; border-radius: 3px; background: var(--road-major); }
+.hud-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: var(--route); box-shadow: 0 0 12px var(--route-glow); transition: width 1.6s cubic-bezier(.3,.7,.2,1); }
+.hud.on .hud-bar i { width: 100%; }
+.hud-bar::before, .hud-bar::after { content: ""; box-sizing: border-box; position: absolute; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--bg); border: 3px solid var(--route); z-index: 1; }
+.hud-bar::before { left: -2px; }
+.hud-bar::after { right: -2px; }
+
+/* 擅长领域：像一段路面，标签之间是车道线 */
+.marquee {
+  overflow: hidden; margin-top: 48px; padding-block: 14px;
+  background: var(--road); border-block: 2px solid var(--road-major);
+  -webkit-mask-image: linear-gradient(90deg, transparent, var(--mask) 10%, var(--mask) 90%, transparent);
+          mask-image: linear-gradient(90deg, transparent, var(--mask) 10%, var(--mask) 90%, transparent);
+}
+.marquee .track { display: flex; width: max-content; animation: slide 36s linear infinite; font-family: var(--mono); font-size: 14px; color: var(--muted); }
+.marquee span { display: inline-flex; align-items: center; gap: 22px; padding-right: 22px; white-space: nowrap; }
+.marquee span::before { content: ""; width: 24px; height: 2px; border-radius: 1px; background: var(--route); opacity: .55; }
+
+/* 过往经历：一条导航路线 */
+.timeline { position: relative; padding-left: 52px; }
+.timeline::before {
+  content: ""; position: absolute; left: 14px; top: 6px; bottom: 0; width: 12px; border-radius: 6px;
+  background: repeating-linear-gradient(to bottom, var(--lane) 0 10px, transparent 10px 22px) 50% 0 / 2px 100% no-repeat, var(--road-major);
+}
+.timeline .fill {
+  position: absolute; left: 16px; top: 6px; width: 8px; height: 0; border-radius: 4px;
+  background: var(--route); box-shadow: 0 0 16px var(--route-glow);
+}
+.timeline .fill::after {
+  content: ""; position: absolute; left: 50%; bottom: -7px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%;
+  background: var(--route-hi); box-shadow: 0 0 0 4px var(--route-glow), 0 0 18px var(--route);
+}
+.item { position: relative; padding-bottom: 44px; }
+.item::before {
+  content: ""; box-sizing: border-box; position: absolute; left: -43px; top: 3px; width: 22px; height: 22px; border-radius: 50%; z-index: 1;
+  background: var(--bg); border: 3px solid var(--station); transition: border-color .4s, box-shadow .4s;
+}
+.item.passed::before { border-color: var(--route); box-shadow: 0 0 0 4px var(--route-soft); }
+.item.now::before {
+  left: -44px; top: -18px; width: 24px; height: 24px; border: 0; z-index: 2;
+  border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+  background: radial-gradient(circle, var(--bg) 0 4px, var(--route) 4.5px);
+  box-shadow: 0 0 18px var(--route-glow);
+}
+.item.now::after {
+  content: ""; box-sizing: border-box; position: absolute; left: -49px; top: 5px; width: 34px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--route); opacity: 0; animation: ping 2.2s ease-out infinite;
+}
+.item .when { font-family: var(--mono); font-size: 13px; line-height: 22px; color: var(--label); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.item.now .when { color: var(--route); }
+.item.now .when::after, .item:last-child .when::after { font-size: 11px; line-height: 18px; letter-spacing: .08em; padding: 0 7px; border-radius: 4px; }
+.item.now .when::after { content: "You are here"; background: var(--route-soft); color: var(--route); }
+.item:last-child .when::after { content: "Start"; border: 1px solid var(--line); color: var(--label); }
+.item h3 { margin: 6px 0 6px; font-size: 20px; line-height: 1.45; }
+.item p { margin: 0; color: var(--muted); max-width: 62ch; }
+
+/* 作品 */
+.works { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; }
+.works > .card { grid-column: span 2; }
+.works > .card.half { grid-column: span 3; }
+.works > .card.half .shot { height: 250px; }
+.card {
+  position: relative; padding: 24px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line);
+  transform-style: preserve-3d; transition: transform .15s ease-out, border-color .3s; min-width: 0; overflow: hidden;
+}
+.card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(300px circle at var(--mx, 50%) var(--my, 50%), var(--route-soft), transparent 60%);
+}
+.card:hover { border-color: var(--station); }
+.card:hover::after { opacity: 1; }
+.shot { position: relative; margin: -24px -24px 18px; height: 210px; display: grid; place-items: center; overflow: hidden; background: var(--plate); border-bottom: 1px solid var(--line); }
+.shot img { position: absolute; inset: 0; width: 100%; height: 100%; padding: 18px; object-fit: contain; mix-blend-mode: multiply; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.shot.flat img { mix-blend-mode: normal; }
+.shot.photo img { padding: 0; object-fit: cover; }
+.shot.top img { object-position: center top; }
+.shot.screen img { padding: 16px 0 0; mix-blend-mode: normal; object-position: center bottom; }
+.shot.screen { background: linear-gradient(160deg, var(--surface-2), var(--line)); }
+.card:hover .shot img { transform: scale(1.05); }
+.works > .card.feature { grid-column: 1 / -1; }
+.card.feature { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 32px; align-items: center; }
+.card.feature .shot { margin: -24px 0 -24px -24px; height: auto; min-height: 380px; align-self: stretch; border-bottom: 0; border-right: 1px solid var(--line); }
+.card.feature h3 { font-size: clamp(22px, 3vw, 30px); }
+.card.feature p { max-width: 56ch; }
+.card .more { display: inline-block; margin-top: 16px; font-size: 15px; }
+.card .tag { font-family: var(--mono); font-size: 12px; color: var(--route); display: inline-flex; align-items: center; gap: 8px; letter-spacing: .02em; }
+.card .tag::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--route); }
+.card h3 { margin: 10px 0 8px; font-size: 20px; line-height: 1.45; }
+.card p { margin: 0; color: var(--muted); font-size: 16px; }
+
+/* 终点：联系 */
+.contact { padding-block: 96px 120px; }
+.contact h2 { font-size: clamp(36px, 7vw, 72px); }
+.contact .grad { color: var(--route); }
+.mail { display: inline-flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 22px; font-family: var(--mono); font-size: clamp(16px, 2.4vw, 22px); }
+.mail code { user-select: all; border-bottom: 1px dashed var(--route); padding-bottom: 2px; }
+.handle { color: var(--muted); margin: 8px 0 0; }
+.handle b { color: var(--fg); font-family: var(--mono); font-weight: 500; }
+.toast { font-size: 13px; color: var(--route); min-height: 1.4em; }
+footer { padding-block: 24px; color: var(--muted); font-family: var(--mono); font-size: 12px; border-top: 1px solid var(--line); }
+
+.in { animation: rise .8s cubic-bezier(.2,.8,.2,1) both; }
+
+@keyframes drop { from { transform: translateY(-.6em) rotate(-8deg); opacity: 0; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes slide { to { transform: translateX(-50%); } }
+@keyframes ping { 0% { transform: scale(.3); opacity: .9; } 100% { transform: scale(1.8); opacity: 0; } }
+@keyframes rise { from { transform: translateY(28px); opacity: 0; } }
+
+@media (max-width: 860px) {
+  .hero { display: block; min-height: 0; padding-block: 36px 300px; }
+}
+@media (max-width: 760px) {
+  .about { grid-template-columns: 1fr; gap: 32px; }
+  .works { grid-template-columns: 1fr; }
+  .works > .card, .works > .card.half { grid-column: auto; }
+  .card.feature { grid-template-columns: 1fr; gap: 0; }
+  .card.feature .shot { margin: -24px -24px 18px; min-height: 0; height: 300px; border-right: 0; border-bottom: 1px solid var(--line); }
+  nav ul { gap: 14px; }
+  h1 { margin-top: 18px; }
+}
+@media (max-width: 420px) {
+  .nav-in { font-size: 12px; gap: 12px; }
+  nav ul { gap: 11px; }
+  .logo { font-size: 20px; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  html { scroll-behavior: auto; }
+  .item.now::after { opacity: .45; transform: scale(1.2); }
+}
+</style>
+</head>
+<body>
+<div class="stage" id="stage" aria-hidden="true"><canvas id="map"></canvas></div>
+
+<nav class="top">
+  <div class="wrap nav-in">
+    <span class="logo">CR100</span>
+    <ul>
+      <li><a href="#about">About</a></li>
+      <li><a href="#journey">Journey</a></li>
+      <li><a href="#works">Work</a></li>
+      <li><a href="#contact">Contact</a></li>
+      <li class="lang"><a href="../" hreflang="zh-CN" lang="zh-CN" data-lang="zh">中文</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow hero-eyebrow"><span class="coord">39.90°N 116.40°E</span><span>Hello, I'm CR100 · Product Manager · Founder</span></div>
+    <h1 id="name"><span class="grad">Chen Rui</span></h1>
+    <div class="role">I'm a <b id="typed"></b><span class="caret"></span></div>
+    <p class="tagline">I'm one of the co-founders of <a class="inline" href="https://aihibot.cn" target="_blank" rel="noopener">Hibot</a>, where my partners and I make AI portable Bluetooth speakers that play songs you request by voice. Before that, I spent 7 years in product at iFLYTEK, mainly on the iFLYTEK Smart Recorder and the iFLYTEK Huiyibao S8 meeting transcriber series.</p>
+    <div class="cta">
+      <a class="btn primary" href="#works">See what I've built</a>
+      <a class="btn" href="https://aihibot.cn" target="_blank" rel="noopener">Learn about Hibot ↗</a>
+    </div>
+  </header>
+
+  <section id="about">
+    <div class="eyebrow">About</div>
+    <h2>Who I am</h2>
+    <div class="about">
+      <div>
+        <p>I'm a product manager, and now a founder too. In December 2025 I left iFLYTEK and co-founded <strong>Hibot</strong> with my partners. Our first product is the Hibot S50, an AI portable Bluetooth speaker that plays songs you request by voice. At iFLYTEK I was a Senior Product Manager. My main product was the <strong>iFLYTEK Smart Recorder SR series</strong>, and I also owned the <strong>iFLYTEK Huiyibao S8 meeting transcriber series</strong> end to end, from project kickoff to sales.</p>
+        <p>I've been a product manager since 2011. I've worked on navigation apps (Navidog), dash cams (Goluk, 360 Dash Cam), connected cars (LeEco Car Connect) and Android launchers (360 Launcher, Hola Launcher), as well as the desktop website for Huajiao Live, a livestreaming platform. Before that, from 2008 to 2011, I did technical support for map data at Beijing Chengji Gaoke. That is where my career began.</p>
+        <p>Many of the products I've worked on combine hardware and software: dash cams, voice recorders, meeting transcribers. The device and its phone, web and PC software all have to be thought through together. Besides being a product manager and a founder, I also see myself as a problem solver. Outside work, I'm a dad, and I've always thought of myself as a lifelong learner.</p>
+      </div>
+      <div class="hud" id="hud">
+        <div class="hud-top"><span>Trip</span><span>2008.03 <b>→</b> Present</span></div>
+        <div class="stats">
+          <div class="stat"><div class="n"><span data-count="14">14</span>+</div><div class="l">years as a product manager</div></div>
+          <div class="stat"><div class="n"><span data-count="7">7</span></div><div class="l">years on AI voice products at iFLYTEK</div></div>
+          <div class="stat"><div class="n"><span data-count="38">38</span></div><div class="l">Android releases of the 360 Dash Cam app</div></div>
+        </div>
+        <div class="hud-bar" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
+    <div class="marquee" aria-label="Areas of expertise">
+      <div class="track">
+        <span>Product planning</span><span>Hardware + software products</span><span>Multi-platform software planning</span><span>Kickoff to sales, end to end</span><span>AI voice products</span><span>Maps &amp; navigation</span><span>Connected cars</span><span>iOS / Android apps</span><span>Operations &amp; monetization</span><span>Products for global markets</span>
+        <span aria-hidden="true">Product planning</span><span aria-hidden="true">Hardware + software products</span><span aria-hidden="true">Multi-platform software planning</span><span aria-hidden="true">Kickoff to sales, end to end</span><span aria-hidden="true">AI voice products</span><span aria-hidden="true">Maps &amp; navigation</span><span aria-hidden="true">Connected cars</span><span aria-hidden="true">iOS / Android apps</span><span aria-hidden="true">Operations &amp; monetization</span><span aria-hidden="true">Products for global markets</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="journey">
+    <div class="eyebrow">Journey</div>
+    <h2>Experience</h2>
+    <div class="timeline" id="timeline">
+      <div class="fill" id="fill"></div>
+      <div class="item now"><div class="when">2025.12 — Present</div><h3>Co-founder · Hibot</h3><p>Left iFLYTEK and co-founded Hibot with my partners. Our first product, the Hibot S50, is an AI portable Bluetooth speaker that plays songs you request by voice. It is available on JD.com and Tmall. Website: <a class="inline" href="https://aihibot.cn" target="_blank" rel="noopener">aihibot.cn</a></p></div>
+      <div class="item"><div class="when">2019.01 — 2025.12</div><h3>Senior Product Manager · iFLYTEK</h3><p>Owned product planning for the iFLYTEK Smart Recorder SR series, my main product, and planned the recorder's software across phone, web and device. Also owned the iFLYTEK Huiyibao S8 meeting transcriber series end to end, from project kickoff to sales, including product, technical and operations work. Planned, designed and launched the companion PC software for the S8 Enterprise Edition.</p></div>
+      <div class="item"><div class="when">2017.09 — 2018.09</div><h3>Senior Product Manager · Beijing Oula Shidai</h3><p>Owned development, operations and monetization for two Android launchers: 360 Launcher for China and Hola Launcher for international markets.</p></div>
+      <div class="item"><div class="when">2017.04 — 2017.09</div><h3>Senior Product Manager · LeEco Auto</h3><p>Owned overall product design and planning for the LeEco Car Connect app (iOS / Android), plus the design, planning and development of connected-car services.</p></div>
+      <div class="item"><div class="when">2015.10 — 2016.10</div><h3>Product Manager · Qihoo 360</h3><p>Owned overall design and development of the 360 Dash Cam app (iOS / Android), including core features such as connecting to the camera and short-video sharing. The Android app went through 8 major and 30 minor releases. Also owned design and development of the desktop website for Huajiao Live, a livestreaming platform.</p></div>
+      <div class="item"><div class="when">2011.11 — 2015.10</div><h3>Product Manager · Beijing Tengrui Wanli &amp; Beijing Mobnote Technology</h3><p>Navidog, a navigation app, and Goluk, a smart dash cam, were built one after the other by the same founding team. Owned map and navigation feature design and the iOS version of Navidog 4.0, plus the Smart Audi (智慧奥迪) navigation service partnership with Dalian Loulan. Also owned overall design of the Goluk app (iOS / Android) and the Goluk website. Goluk received angel investment from Sinovation Ventures.</p></div>
+      <div class="item"><div class="when">2008.03 — 2011.10</div><h3>Technical Support · Beijing Chengji Gaoke</h3><p>Worked on map data for Chengjitong GPS navigators: created and assigned map data tasks, and provided technical support for mapping roads and points of interest. This is where my work with maps and navigation began.</p></div>
+    </div>
+  </section>
+
+  <section id="works">
+    <div class="eyebrow">Selected work</div>
+    <h2>Products I've worked on</h2>
+    <div class="works">
+      <article class="card feature"><figure class="shot flat"><img src="../img/hibot-s50.jpg" alt="Hibot S50 AI portable Bluetooth speaker"></figure><div class="body"><div class="tag">Hibot / Available now</div><h3>Hibot S50 AI portable Bluetooth speaker</h3><p>The first product from the startup my partners and I founded. Press the Hibot button and say a song's name to play it. Songs are stored on a microSD (TF) card, so voice requests work even offline. About 21 hours of battery life, IP67 dust and water resistance, True Wireless Stereo (TWS) and multi-speaker pairing. Take it hiking, trail running, camping or on road trips.</p><a class="inline more" href="https://aihibot.cn" target="_blank" rel="noopener">Visit the website ↗</a></div></article>
+      <article class="card half"><figure class="shot"><img src="../img/iflytek-sr.jpg" alt="iFLYTEK Smart Recorder SR502"></figure><div class="tag">iFLYTEK</div><h3>iFLYTEK Smart Recorder SR series</h3><p>My main product at iFLYTEK. I owned product planning for the SR series and planned the recorder's software on phone, web and device, thinking through the hardware and the software on every platform together.</p></article>
+      <article class="card half"><figure class="shot photo"><img src="../img/iflytek-s8.jpg" alt="iFLYTEK Huiyibao S8 meeting transcriber"></figure><div class="tag">iFLYTEK</div><h3>iFLYTEK Huiyibao S8 meeting transcriber / S8 Enterprise Edition</h3><p>I owned the S8 series end to end, from project kickoff to sales, including product, technical and operations work. I also owned the Enterprise Edition's companion PC software, from planning and design to launch.</p></article>
+      <article class="card"><figure class="shot"><img src="../img/360-dashcam.jpg" alt="360 Dash Cam"></figure><div class="tag">Qihoo 360 / 2015–2016</div><h3>360 Dash Cam app</h3><p>I owned overall product design and development for both the iOS and Android apps, including core features such as connecting to the camera and short-video sharing. During my time on it, the Android app went through 8 major and 30 minor releases.</p></article>
+      <article class="card"><figure class="shot screen"><img src="../img/launcher.jpg" alt="Hola Launcher Android home screen screenshot"></figure><div class="tag">Beijing Oula Shidai / 2017–2018</div><h3>Hola Launcher &amp; 360 Launcher</h3><p>Two Android launchers: Hola Launcher for international markets and 360 Launcher for China. I owned development, operations and monetization for both.</p></article>
+      <article class="card"><figure class="shot"><img src="../img/leeco-carlink.jpg" alt="LeEco in-car kit and the LeEco Car Connect app"></figure><div class="tag">LeEco Auto / 2017</div><h3>LeEco Car Connect</h3><p>LeEco Auto's connected-car product. I owned overall product design and planning for the LeEco Car Connect app (iOS / Android), plus the design, planning and development of connected-car services.</p></article>
+      <article class="card half"><figure class="shot photo top"><img src="../img/navidog.jpg" alt="Navidog for iPhone screenshot, 2012"></figure><div class="tag">Beijing Tengrui Wanli</div><h3>Navidog 4.0</h3><p>Launched in 2006, Navidog is a long-established mobile navigation app in China. In 2013 it officially reported more than 70 million users, and its investors included Sequoia Capital China and the map data company NavInfo. For version 4.0, I owned the map and navigation feature design and the iOS version, along with the Smart Audi (智慧奥迪) navigation service partnership with Dalian Loulan.</p></article>
+      <article class="card half"><figure class="shot"><img src="../img/goluk.jpg" alt="Goluk G1 dash cam"></figure><div class="tag">Beijing Mobnote Technology · Backed by Sinovation Ventures</div><h3>Goluk</h3><p>Goluk is a smart dash cam that the Navidog team built in their second startup. It received angel investment from Sinovation Ventures, and Kai-Fu Lee and Xu Xiaoping both publicly endorsed it. I owned overall product design for the Goluk app (iOS / Android) and the Goluk website.</p></article>
+    </div>
+  </section>
+
+  <section class="contact" id="contact">
+    <div class="eyebrow">Contact</div>
+    <h2><span class="grad">Want to talk?</span></h2>
+    <p class="tagline">Have a problem we could solve together, or want to talk about products or <a class="inline" href="https://aihibot.cn" target="_blank" rel="noopener">Hibot</a>? Send me an email.</p>
+    <div class="mail"><code id="email">chen100rui@gmail.com</code><button class="btn" id="copy" type="button">Copy email</button></div>
+    <div class="toast" id="toast" role="status"></div>
+    <p class="handle">On most social platforms my handle is <b>CR100</b>. Search for it and you'll find me.</p>
+  </section>
+
+  <footer>© 2026 Chen Rui (CR100) · I built this site myself with vibe coding · Product images are from brand websites and public sources and are used only to illustrate my work history</footer>
+</div>
+
+<script>
+(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // 名字逐字掉落
+  const nameEl = document.querySelector('#name .grad');
+  if (!reduce) {
+    const text = nameEl.textContent;
+    nameEl.textContent = '';
+    let i = 0;
+    text.split(' ').forEach((word, wi) => {
+      if (wi) nameEl.appendChild(document.createTextNode(' '));
+      const w = document.createElement('span');
+      w.style.whiteSpace = 'nowrap';
+      [...word].forEach(c => {
+        const s = document.createElement('span');
+        s.className = 'char'; s.textContent = c; s.style.animationDelay = (i++ * 0.06) + 's';
+        w.appendChild(s);
+      });
+      nameEl.appendChild(w);
+      i++;
+    });
+  }
+
+  // 打字机：轮换身份
+  const roles = ['product manager', 'founder', 'problem solver', 'lifelong learner', 'dad'];
+  const typed = document.getElementById('typed');
+  if (reduce) { typed.textContent = roles[0]; } else {
+    let r = 0, i = 0, del = false;
+    (function tick() {
+      const w = roles[r];
+      typed.textContent = w.slice(0, i);
+      if (!del && i === w.length) { del = true; return setTimeout(tick, 1600); }
+      if (del && i === 0) { del = false; r = (r + 1) % roles.length; }
+      i += del ? -1 : 1;
+      setTimeout(tick, del ? 60 : 120);
+    })();
+  }
+
+  // 夜间导航地图：街道网格 + 环路 + 等高线，一条路线从 2008 年的北京画到 Hibot
+  const stage = document.getElementById('stage'), cv = document.getElementById('map'), ctx = cv.getContext('2d');
+  const hero = document.querySelector('.hero'), navEl = document.querySelector('nav.top');
+  const css = getComputedStyle(document.documentElement);
+  const V = k => css.getPropertyValue('--' + k).trim();
+  const P = { bg: V('bg'), block: V('block'), park: V('park'), water: V('water'), shore: V('shore'), road: V('road'), major: V('road-major'),
+    ring: V('ring'), contour: V('contour'), route: V('route'), hi: V('route-hi'), label: V('label'), fg: V('fg'), surface: V('surface') };
+  const rgba = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${n >> 8 & 255},${n & 255},${a})`; };
+  const clamp = v => Math.max(0, Math.min(1, v));
+  const rng = s => () => { s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const DPR = Math.min(2, devicePixelRatio || 1), M = 48, DUR = 3400;
+  const MONO = '"JetBrains Mono", "Noto Sans SC", ui-monospace, monospace', SIGN = '"Barlow Condensed", "Noto Sans SC", "Arial Narrow", sans-serif';
+  const LABELS = ['2008 · Beijing', '2011', '2015', '2017', '2019', 'Hibot'];
+  let W = 0, H = 0, g = 46, narrow = false, zone, far, near, path, pts = [], cum = [], total = 0, wps = [], built = '';
+  let T0 = performance.now() + 700;
+  const cur = { x: 0, y: 0 }, tgt = { x: 0, y: 0 };
+
+  function layer() {
+    const c = document.createElement('canvas');
+    c.width = Math.ceil((W + 2 * M) * DPR); c.height = Math.ceil((H + 2 * M) * DPR);
+    const x = c.getContext('2d'); x.setTransform(DPR, 0, 0, DPR, M * DPR, M * DPR);
+    return [c, x];
+  }
+  function rrect(c, x, y, w, h, r) {
+    c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+  }
+
+  function build(force) {
+    narrow = matchMedia('(max-width: 860px)').matches;
+    W = document.documentElement.clientWidth;
+    const sy = scrollY, hb = hero.getBoundingClientRect();
+    H = Math.ceil(hb.bottom + sy + 64);
+    const key = W + 'x' + H + narrow;
+    if (!force && key === built) return false;
+    built = key;
+    stage.style.height = H + 'px';
+    cv.width = Math.ceil(W * DPR); cv.height = Math.ceil(H * DPR);
+    g = narrow ? 30 : 46;
+    if (narrow) {
+      const cta = hero.querySelector('.cta').getBoundingClientRect();
+      zone = { x0: 30, x1: W - 30, y0: cta.bottom + sy + 58, y1: hb.bottom + sy - 30 };
+    } else {
+      let tr = 0;
+      hero.querySelectorAll('#name .grad, .tagline, .cta .btn').forEach(el => { tr = Math.max(tr, el.getBoundingClientRect().right); });
+      zone = { x0: tr + 72, x1: W - 56, y0: navEl.offsetHeight + 70, y1: hb.bottom + sy - 56 };
+    }
+    const nx = Math.max(5, Math.floor((zone.x1 - zone.x0) / g)), ny = Math.max(4, Math.floor((zone.y1 - zone.y0) / g));
+    const X = k => zone.x0 + k * g, Y = j => zone.y0 + j * g;
+
+    // 途经点（网格坐标）：x 单调递增，路线不会自己交叉
+    const N = narrow ? [[0, .84], [.2, .3], [.42, .74], [.62, .22], [.8, .62], [1, .12]]
+                     : [[.03, .95], [.22, .66], [.4, .8], [.58, .46], [.74, .58], [.95, .1]];
+    const wp = N.map(([a, b]) => [Math.round(a * nx), Math.round(b * ny)]);
+    for (let i = 1; i < wp.length; i++) if (wp[i][0] <= wp[i - 1][0]) wp[i][0] = wp[i - 1][0] + 1;
+
+    // 沿街道走：先横后竖，长的竖段拆成 Z 字
+    const C = [{ x: wp[0][0], y: wp[0][1], w: 0 }];
+    let din = [1, 0];
+    for (let i = 1; i < wp.length; i++) {
+      const [ax, ay] = wp[i - 1], [bx, by] = wp[i], dx = Math.sign(bx - ax), dy = Math.sign(by - ay);
+      const vOk = dy !== 0 && !(din[0] === 0 && din[1] === -dy);
+      if (i % 2 === 0 && vOk) {
+        C.push({ x: ax, y: by }); din = [dx, 0];
+      } else if (Math.abs(by - ay) >= 4) {
+        const mx = Math.round((ax + bx) / 2);
+        C.push({ x: mx, y: ay }, { x: mx, y: by }); din = [dx, 0];
+        if (mx === bx) din = [0, dy];
+      } else {
+        C.push({ x: bx, y: ay }); din = dy ? [0, dy] : [dx, 0];
+      }
+      C.push({ x: bx, y: by, w: i });
+    }
+    // 去重 + 去掉共线的普通拐点
+    const K = [];
+    for (const c of C) {
+      const l = K[K.length - 1];
+      if (l && l.x === c.x && l.y === c.y) { if (c.w != null) l.w = c.w; continue; }
+      K.push({ ...c });
+    }
+    for (let i = K.length - 2; i > 0; i--) {
+      const a = K[i - 1], b = K[i], c = K[i + 1];
+      if (b.w == null && ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y))) K.splice(i, 1);
+    }
+    // 记录路线占用的街段，铺路网时不留缺口
+    const used = new Set();
+    for (let i = 1; i < K.length; i++) {
+      const a = K[i - 1], b = K[i];
+      if (a.x === b.x) for (let j = Math.min(a.y, b.y); j < Math.max(a.y, b.y); j++) used.add('v' + a.x + ',' + j);
+      else for (let k = Math.min(a.x, b.x); k < Math.max(a.x, b.x); k++) used.add('h' + k + ',' + a.y);
+    }
+    // 圆角采样
+    const R = g * .42;
+    pts = [[X(K[0].x), Y(K[0].y)]]; wps = [{ x: X(K[0].x), y: Y(K[0].y), i: 0, len: 0 }];
+    cum = [0]; total = 0;
+    const push = p => { const l = pts[pts.length - 1]; total += Math.hypot(p[0] - l[0], p[1] - l[1]); pts.push(p); cum.push(total); };
+    for (let i = 1; i < K.length; i++) {
+      const b = [X(K[i].x), Y(K[i].y)];
+      if (i < K.length - 1 && K[i].w == null) {
+        const a = [X(K[i - 1].x), Y(K[i - 1].y)], c = [X(K[i + 1].x), Y(K[i + 1].y)];
+        const l1 = Math.hypot(b[0] - a[0], b[1] - a[1]), l2 = Math.hypot(c[0] - b[0], c[1] - b[1]), r = Math.min(R, l1 / 2, l2 / 2);
+        const p1 = [b[0] + (a[0] - b[0]) / l1 * r, b[1] + (a[1] - b[1]) / l1 * r], p2 = [b[0] + (c[0] - b[0]) / l2 * r, b[1] + (c[1] - b[1]) / l2 * r];
+        push(p1);
+        for (let s = 1; s <= 8; s++) { const t = s / 8, u = 1 - t; push([u * u * p1[0] + 2 * u * t * b[0] + t * t * p2[0], u * u * p1[1] + 2 * u * t * b[1] + t * t * p2[1]]); }
+      } else {
+        push(b);
+        if (K[i].w != null) {
+          const prev = K[i - 1], next = K[i + 1];
+          const vin = [Math.sign(K[i].x - prev.x), Math.sign(K[i].y - prev.y)];
+          const vout = next ? [Math.sign(next.x - K[i].x), Math.sign(next.y - K[i].y)] : vin;
+          wps.push({ x: b[0], y: b[1], i: K[i].w, len: total, vin, vout });
+        }
+      }
+    }
+    path = new Path2D(); path.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) path.lineTo(pts[i][0], pts[i][1]);
+    // 标签放在路线进出方向的反侧
+    wps.forEach((w, i) => {
+      if (i === 0) { w.lx = -4; w.ly = 24; w.al = 'left'; return; }
+      let sx = w.vin[0] - w.vout[0], sy2 = w.vin[1] - w.vout[1];
+      if (!sx) sx = 1; if (!sy2) sy2 = -1;
+      w.lx = sx > 0 ? 11 : -11; w.ly = sy2 > 0 ? 19 : -10; w.al = sx > 0 ? 'left' : 'right';
+    });
+
+    // ---- 静态图层 ----
+    const rnd = rng(20080301);
+    let fctx, nctx; [far, fctx] = layer(); [near, nctx] = layer();
+    // 远景：等高线（西北方向的山）
+    const hill = (cx, cy, n, r0, dr, ph) => {
+      for (let k = 0; k < n; k++) {
+        fctx.beginPath();
+        for (let s = 0; s <= 120; s++) {
+          const a = s / 120 * Math.PI * 2;
+          const r = (r0 + k * dr) * (1 + .11 * Math.sin(3 * a + ph + k * .18) + .06 * Math.sin(5 * a + ph * 2 - k * .12) + .025 * Math.sin(9 * a + k * .4));
+          const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r * .82;
+          s ? fctx.lineTo(x, y) : fctx.moveTo(x, y);
+        }
+        fctx.closePath(); fctx.lineWidth = k % 4 === 3 ? 1.6 : 1; fctx.strokeStyle = P.contour; fctx.stroke();
+      }
+    };
+    hill(W * .04, H * .2, 11, 36, 30, 1.3);
+    hill(W * .94, H * .96, 8, 30, 28, 4.1);
+    // 近景：街区、公园、河、路网、环路
+    const k0 = Math.floor((-M - zone.x0) / g), k1 = Math.ceil((W + M - zone.x0) / g);
+    const j0 = Math.floor((-M - zone.y0) / g), j1 = Math.ceil((H + M - zone.y0) / g);
+    for (let k = k0; k < k1; k++) for (let j = j0; j < j1; j++) {
+      const r = rnd();
+      if (r < .16) { nctx.fillStyle = P.block; nctx.fillRect(X(k) + 5, Y(j) + 5, g - 10, g - 10); }
+      else if (r > .972) { nctx.fillStyle = P.park; nctx.fillRect(X(k) + 4, Y(j) + 4, g - 8, g - 8); }
+    }
+    const river = new Path2D();
+    river.moveTo(-M, H * .9); river.bezierCurveTo(W * .3, H * .66, W * .55, H * 1.04, W + M, H * .7);
+    nctx.lineCap = 'round'; nctx.strokeStyle = P.water; nctx.lineWidth = narrow ? 12 : 18; nctx.stroke(river);
+    nctx.strokeStyle = P.shore; nctx.lineWidth = 1; nctx.stroke(river);
+    const major = v => ((v % 4) + 4) % 4 === 1;
+    nctx.strokeStyle = P.road; nctx.lineWidth = 1; nctx.beginPath();
+    for (let k = k0; k <= k1; k++) for (let j = j0; j < j1; j++) {
+      if (!major(k) && (rnd() < .76 || used.has('v' + k + ',' + j))) { nctx.moveTo(X(k), Y(j)); nctx.lineTo(X(k), Y(j + 1)); }
+    }
+    for (let j = j0; j <= j1; j++) for (let k = k0; k < k1; k++) {
+      if (!major(j) && (rnd() < .76 || used.has('h' + k + ',' + j))) { nctx.moveTo(X(k), Y(j)); nctx.lineTo(X(k + 1), Y(j)); }
+    }
+    nctx.stroke();
+    nctx.strokeStyle = P.major; nctx.lineWidth = 2.2; nctx.beginPath();
+    for (let k = k0; k <= k1; k++) if (major(k)) { nctx.moveTo(X(k), -M); nctx.lineTo(X(k), H + M); }
+    for (let j = j0; j <= j1; j++) if (major(j)) { nctx.moveTo(-M, Y(j)); nctx.lineTo(W + M, Y(j)); }
+    nctx.stroke();
+    const cx = X(Math.round(nx / 2)), cy = Y(Math.round(ny / 2));
+    nctx.strokeStyle = P.ring; nctx.lineWidth = narrow ? 2.2 : 3; nctx.beginPath();
+    for (const s of (narrow ? [2, 4, 7, 11] : [2, 4, 7, 10, 14])) {
+      const hw = s * g, hh = Math.max(1, Math.round(s * .8)) * g;
+      rrect(nctx, cx - hw, cy - hh, hw * 2, hh * 2, Math.min(hw * .35, 2.5 * g));
+    }
+    nctx.stroke();
+    return true;
+  }
+
+  const ease = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+  const backOut = t => 1 + 2.4 * Math.pow(t - 1, 3) + 1.4 * Math.pow(t - 1, 2);
+  const bounce = t => { const n = 7.5625, d = 2.75; if (t < 1 / d) return n * t * t; if (t < 2 / d) return n * (t -= 1.5 / d) * t + .75; if (t < 2.5 / d) return n * (t -= 2.25 / d) * t + .9375; return n * (t -= 2.625 / d) * t + .984375; };
+  function at(d) {
+    let lo = 0, hi = cum.length - 1;
+    while (lo < hi - 1) { const m = (lo + hi) >> 1; if (cum[m] < d) lo = m; else hi = m; }
+    const span = cum[hi] - cum[lo] || 1, t = clamp((d - cum[lo]) / span);
+    return [pts[lo][0] + (pts[hi][0] - pts[lo][0]) * t, pts[lo][1] + (pts[hi][1] - pts[lo][1]) * t];
+  }
+  function pin(x, y) {
+    const h = 24, r = 10.5, phi = Math.acos(r / h);
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + r * Math.sin(phi), y - h + r * Math.cos(phi));
+    ctx.arc(x, y - h, r, Math.PI / 2 - phi, Math.PI / 2 + phi, true);
+    ctx.closePath(); ctx.fillStyle = P.route; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - h, 4, 0, 7); ctx.fillStyle = P.bg; ctx.fill();
+  }
+
+  function frame(now) {
+    if (!path) return;
+    if (!reduce) { cur.x += (tgt.x - cur.x) * .06; cur.y += (tgt.y - cur.y) * .06; }
+    const sy = reduce ? 0 : Math.min(scrollY, H), q = v => Math.round(v * DPR) / DPR;
+    const nx = q(-cur.x * 28), ny = q(-cur.y * 20 + sy * .12), fx = q(-cur.x * 10), fy = q(-cur.y * 8 + sy * .26);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.drawImage(far, -M + fx, -M + fy, W + 2 * M, H + 2 * M);
+    ctx.drawImage(near, -M + nx, -M + ny, W + 2 * M, H + 2 * M);
+    // 文字区压暗，让正文始终好读
+    const sh = narrow ? ctx.createLinearGradient(0, 0, 0, zone.y0) : ctx.createLinearGradient(0, 0, zone.x0 + 40, 0);
+    sh.addColorStop(0, rgba(P.bg, .72)); sh.addColorStop(.7, rgba(P.bg, .5)); sh.addColorStop(1, rgba(P.bg, 0));
+    ctx.fillStyle = sh; narrow ? ctx.fillRect(0, 0, W, zone.y0) : ctx.fillRect(0, 0, zone.x0 + 40, H);
+    if (!narrow) {
+      const ax = zone.x1 + 22, ay = zone.y1 - 24;
+      ctx.fillStyle = rgba(P.label, .55); ctx.beginPath(); ctx.moveTo(ax, ay - 16); ctx.lineTo(ax + 6, ay); ctx.lineTo(ax, ay - 4); ctx.lineTo(ax - 6, ay); ctx.closePath(); ctx.fill();
+      ctx.font = '600 13px ' + SIGN; ctx.textAlign = 'center'; ctx.fillText('N', ax, ay + 16);
+    }
+
+    ctx.save(); ctx.translate(nx, ny);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const k = reduce ? 1 : clamp((now - T0) / DUR), d = total * ease(k), after = reduce ? 1e9 : now - T0 - DUR;
+    // 规划路线（虚线）
+    ctx.setLineDash([1, 7]); ctx.lineWidth = 2; ctx.strokeStyle = rgba(P.label, .4); ctx.stroke(path);
+    // 已走过的路线
+    if (d > .5) {
+      ctx.setLineDash([d, total + 10]);
+      ctx.strokeStyle = rgba(P.route, .1); ctx.lineWidth = 18; ctx.stroke(path);
+      ctx.strokeStyle = rgba(P.route, .22); ctx.lineWidth = 9; ctx.stroke(path);
+      ctx.strokeStyle = P.route; ctx.lineWidth = 3.6; ctx.stroke(path);
+      ctx.strokeStyle = rgba(P.hi, .8); ctx.lineWidth = 1.2; ctx.stroke(path);
+    }
+    // 路线画完后，偶尔有一束车流光沿路线跑过
+    if (!reduce && after > 1400) {
+      const ph = ((after - 1400) % 6000) / 2600;
+      if (ph < 1) {
+        const L = 54, pos = ph * (total + L) - L;
+        ctx.setLineDash([L, total * 2 + L]); ctx.lineDashOffset = -pos;
+        ctx.strokeStyle = rgba(P.hi, .9 * Math.sin(ph * Math.PI)); ctx.lineWidth = 2.4; ctx.stroke(path);
+        ctx.lineDashOffset = 0;
+      }
+    }
+    ctx.setLineDash([]);
+    // 途经点
+    const lf = (narrow ? '500 10px ' : '500 11px ') + MONO;
+    wps.forEach((w, i) => {
+      if (i === wps.length - 1) return;
+      const on = d >= w.len - .5, p = on ? clamp((d - w.len) / 60 + (k >= 1 ? 1 : 0)) : 0;
+      ctx.beginPath(); ctx.arc(w.x, w.y, on ? 4 + 2 * backOut(p) : 3.5, 0, 7);
+      ctx.fillStyle = P.bg; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = on ? P.route : rgba(P.label, .55); ctx.stroke();
+      ctx.font = lf; ctx.textAlign = w.al; ctx.fillStyle = rgba(P.label, on ? .95 : .4);
+      ctx.fillText(LABELS[i], w.x + w.lx, w.y + w.ly);
+    });
+    // 行进中的车头光点
+    if (k > 0 && k < 1) {
+      const [hx, hy] = at(d), gr = ctx.createRadialGradient(hx, hy, 0, hx, hy, 22);
+      gr.addColorStop(0, rgba(P.route, .6)); gr.addColorStop(1, rgba(P.route, 0));
+      ctx.fillStyle = gr; ctx.fillRect(hx - 22, hy - 22, 44, 44);
+      ctx.beginPath(); ctx.arc(hx, hy, 3.6, 0, 7); ctx.fillStyle = P.hi; ctx.fill();
+    }
+    // 终点：Hibot
+    const e = wps[wps.length - 1], tp = reduce ? 1 : clamp((after + 120) / 700);
+    if (tp > 0) {
+      if (after > 500) {
+        const rings = reduce ? [.45] : [((after - 500) % 2400) / 2400, ((after - 500 + 1200) % 2400) / 2400];
+        for (const ph of rings) {
+          const rx = 5 + 26 * ph;
+          ctx.beginPath(); ctx.ellipse(e.x, e.y, rx, rx * .4, 0, 0, 7);
+          ctx.strokeStyle = rgba(P.route, (reduce ? .5 : .75) * (1 - ph)); ctx.lineWidth = 1.6; ctx.stroke();
+        }
+      }
+      const y = e.y - (1 - bounce(tp)) * 48;
+      ctx.globalAlpha = Math.min(1, tp * 3);
+      const gr = ctx.createRadialGradient(e.x, y - 24, 0, e.x, y - 24, 36);
+      gr.addColorStop(0, rgba(P.route, .32)); gr.addColorStop(1, rgba(P.route, 0));
+      ctx.fillStyle = gr; ctx.fillRect(e.x - 36, y - 60, 72, 72);
+      pin(e.x, y);
+      ctx.globalAlpha = clamp((after - 250) / 400);
+      ctx.font = '600 18px ' + SIGN;
+      const tw = ctx.measureText('Hibot').width, bw = tw + 22, bh = 28, bx = e.x - 20 - bw, by = e.y - 24 - bh / 2;
+      ctx.beginPath(); rrect(ctx, bx, by, bw, bh, 7);
+      ctx.fillStyle = rgba(P.surface, .94); ctx.fill(); ctx.strokeStyle = rgba(P.route, .6); ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = P.fg; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('Hibot', bx + 11, by + bh / 2 + 1);
+      ctx.textBaseline = 'alphabetic'; ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  build(true);
+  let vis = true, raf = 0;
+  const loop = t => { frame(t); raf = vis ? requestAnimationFrame(loop) : 0; };
+  if (reduce) frame(performance.now());
+  else {
+    new IntersectionObserver(es => { vis = es[0].isIntersecting; if (vis && !raf) raf = requestAnimationFrame(loop); }).observe(stage);
+    raf = requestAnimationFrame(loop);
+    addEventListener('pointermove', e => { tgt.x = e.clientX / innerWidth - .5; tgt.y = e.clientY / innerHeight - .5; }, { passive: true });
+  }
+  let rt;
+  addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (build()) frame(performance.now()); }, 120); });
+  if (document.fonts) document.fonts.ready.then(() => { build(true); frame(performance.now()); });
+
+  // 卡片轻微倾斜 + 光斑跟随
+  document.querySelectorAll('.card').forEach(c => {
+    c.addEventListener('pointermove', e => {
+      const b = c.getBoundingClientRect(), x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
+      c.style.setProperty('--mx', x * 100 + '%'); c.style.setProperty('--my', y * 100 + '%');
+      if (!reduce) c.style.transform = `perspective(800px) rotateX(${(.5 - y) * 6}deg) rotateY(${(x - .5) * 8}deg)`;
+    });
+    c.addEventListener('pointerleave', () => { c.style.transform = ''; });
+  });
+
+  // 滚动出现：只对首屏以下的内容播放，页面静止时内容始终可见
+  const reveal = document.querySelectorAll('section h2, .item, .card, .stat');
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }), { threshold: .15 });
+  if (!reduce) reveal.forEach(el => { if (el.getBoundingClientRect().top > innerHeight) io.observe(el); });
+
+  // 数字滚动（仪表读数）
+  const hud = document.getElementById('hud');
+  const counters = document.querySelectorAll('[data-count]');
+  const run = el => {
+    const end = +el.dataset.count, t0 = performance.now();
+    (function step(t) {
+      const k = Math.min(1, (t - t0) / 1400);
+      el.textContent = Math.round(end * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(step);
+    })(t0);
+  };
+  if (reduce) { counters.forEach(el => el.textContent = el.dataset.count); hud.classList.add('on'); }
+  else {
+    const co = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { run(e.target); hud.classList.add('on'); co.unobserve(e.target); } }));
+    counters.forEach(el => co.observe(el));
+  }
+
+  // 时间线随滚动点亮：路线向下延伸，经过的站点亮起
+  const tl = document.getElementById('timeline'), fill = document.getElementById('fill');
+  const stops = [...tl.querySelectorAll('.item')];
+  const onScroll = () => {
+    const b = tl.getBoundingClientRect();
+    const k = Math.max(0, Math.min(1, (innerHeight * .7 - b.top) / b.height));
+    const h = k * (b.height - 12);
+    fill.style.height = h + 'px';
+    stops.forEach(it => it.classList.toggle('passed', it.offsetTop + 5 <= h));
+  };
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  // 语言切换：记住访客自己的选择
+  document.querySelectorAll('[data-lang]').forEach(a => a.addEventListener('click', () => {
+    try { localStorage.setItem('lang', a.dataset.lang); } catch (e) {}
+  }));
+
+  // 复制邮箱
+  const toast = document.getElementById('toast');
+  document.getElementById('copy').addEventListener('click', () => {
+    const v = document.getElementById('email').textContent;
+    navigator.clipboard.writeText(v).then(() => { toast.textContent = 'Copied: ' + v; })
+      .catch(() => { const r = document.createRange(); r.selectNodeContents(document.getElementById('email')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast.textContent = 'Selected. Press Ctrl/⌘ + C to copy.'; });
+  });
+})();
+</script>
+</body>
+</html>

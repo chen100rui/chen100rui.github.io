@@ -8,6 +8,22 @@
 <meta property="og:description" content="产品经理，Hibot 爱阔合伙人。从 2008 年的地图数据一路走到 Hibot。">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#0b1320">
+<link rel="alternate" hreflang="zh-CN" href="https://chen100rui.github.io/">
+<link rel="alternate" hreflang="en" href="https://chen100rui.github.io/en/">
+<link rel="alternate" hreflang="x-default" href="https://chen100rui.github.io/en/">
+<script>
+/* 语言：手动选过就按手动的；否则时区在中国大陆显示中文，其他地区跳到英文版 */
+(function () {
+  var saved = null;
+  try { saved = localStorage.getItem('lang'); } catch (e) {}
+  if (saved === 'zh') return;
+  if (saved === 'en') { location.replace('en/'); return; }
+  var tz = '';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+  var inChina = /^(Asia\/(Shanghai|Chongqing|Chungking|Harbin|Urumqi|Kashgar)|PRC)$/.test(tz);
+  if (!inChina) location.replace('en/');
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1320'/%3E%3Cpath d='M32 10c-9 0-16 7-16 16 0 12 16 28 16 28s16-16 16-28c0-9-7-16-16-16z' fill='%23ffb547'/%3E%3Ccircle cx='32' cy='26' r='6' fill='%230b1320'/%3E%3C/svg%3E">
 <style>
 /* 基础样式：和预览环境保持一致 */
@@ -92,6 +108,8 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 nav ul { display: flex; gap: 22px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; }
 nav a { color: var(--muted); text-decoration: none; transition: color .2s; }
 nav a:hover, nav a:focus-visible { color: var(--fg); }
+nav .lang a { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; }
+nav .lang a:hover, nav .lang a:focus-visible { border-color: var(--route); color: var(--route); }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--route); outline-offset: 3px; border-radius: 4px; }
 
 /* 首屏 */
@@ -166,7 +184,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.5vw
 .hud-bar { position: relative; margin-top: 20px; height: 6px; border-radius: 3px; background: var(--road-major); }
 .hud-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: inherit; background: var(--route); box-shadow: 0 0 12px var(--route-glow); transition: width 1.6s cubic-bezier(.3,.7,.2,1); }
 .hud.on .hud-bar i { width: 100%; }
-.hud-bar::before, .hud-bar::after { content: ""; position: absolute; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; background: var(--bg); border: 3px solid var(--route); z-index: 1; }
+.hud-bar::before, .hud-bar::after { content: ""; box-sizing: border-box; position: absolute; top: 50%; width: 18px; height: 18px; margin-top: -9px; border-radius: 50%; background: var(--bg); border: 3px solid var(--route); z-index: 1; }
 .hud-bar::before { left: -2px; }
 .hud-bar::after { right: -2px; }
 
@@ -197,7 +215,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.5vw
 }
 .item { position: relative; padding-bottom: 44px; }
 .item::before {
-  content: ""; position: absolute; left: -40px; top: 3px; width: 16px; height: 16px; border-radius: 50%; z-index: 1;
+  content: ""; box-sizing: border-box; position: absolute; left: -43px; top: 3px; width: 22px; height: 22px; border-radius: 50%; z-index: 1;
   background: var(--bg); border: 3px solid var(--station); transition: border-color .4s, box-shadow .4s;
 }
 .item.passed::before { border-color: var(--route); box-shadow: 0 0 0 4px var(--route-soft); }
@@ -208,7 +226,7 @@ h2 { font-family: var(--display); font-weight: 700; font-size: clamp(28px, 4.5vw
   box-shadow: 0 0 18px var(--route-glow);
 }
 .item.now::after {
-  content: ""; position: absolute; left: -47px; top: 5px; width: 30px; height: 12px; border-radius: 50%;
+  content: ""; box-sizing: border-box; position: absolute; left: -49px; top: 5px; width: 34px; height: 16px; border-radius: 50%;
   border: 2px solid var(--route); opacity: 0; animation: ping 2.2s ease-out infinite;
 }
 .item .when { font-family: var(--mono); font-size: 13px; line-height: 22px; color: var(--label); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
@@ -302,6 +320,7 @@ footer { padding-block: 24px; color: var(--muted); font-family: var(--mono); fon
       <li><a href="#journey">经历</a></li>
       <li><a href="#works">作品</a></li>
       <li><a href="#contact">联系</a></li>
+      <li class="lang"><a href="en/" hreflang="en" lang="en" data-lang="en">EN</a></li>
     </ul>
   </div>
 </nav>
@@ -758,6 +777,11 @@ footer { padding-block: 24px; color: var(--muted); font-family: var(--mono); fon
     stops.forEach(it => it.classList.toggle('passed', it.offsetTop + 5 <= h));
   };
   addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  // 语言切换：记住访客自己的选择
+  document.querySelectorAll('[data-lang]').forEach(a => a.addEventListener('click', () => {
+    try { localStorage.setItem('lang', a.dataset.lang); } catch (e) {}
+  }));
 
   // 复制邮箱
   const toast = document.getElementById('toast');
